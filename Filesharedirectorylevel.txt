@@ -1,0 +1,35 @@
+$ctx = New-AzStorageContext -StorageAccountName $accountName -StorageAccountKey $key  
+$shareName = "<shareName>"
+$folderPath = "<folderPath>"  #Excaple "Dir", "Dir1/Dir2"
+
+$DirIndex = 0  
+$dirsToList = New-Object System.Collections.Generic.List[System.Object]  
+
+# Get folder within the share
+$shareFolder = Get-AzStorageFile -ShareName $shareName -Path $folderPath -context $ctx   
+$dirsToList += $shareFolder   
+
+# List files recursively and remove files older than 14 days   
+While ($dirsToList.Count -gt $DirIndex)  
+{  
+    $dir = $dirsToList[$DirIndex]  
+    $DirIndex++  
+    $fileListItems = $dir | Get-AzStorageFile  
+    $dirsListOut = $fileListItems | where {$_.GetType().Name -eq "AzureStorageFileDirectory"}  
+    $dirsToList += $dirsListOut  
+    $files = $fileListItems | where {$_.GetType().Name -eq "AzureStorageFile"}  
+
+    foreach($file in $files)  
+    {  
+        # Fetch Attributes of each file and output  
+        $task = $file.CloudFile.FetchAttributesAsync()  
+        $task.Wait()  
+
+        # Remove file if it's older than 14 days  
+        if ($file.CloudFile.Properties.LastModified -lt (Get-Date).AddDays(-14))  
+        {  
+            # Remove file  
+            $file | Remove-AzStorageFile  
+        }  
+    }  
+}
